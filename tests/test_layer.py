@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import random
-from udnn import Flatten, tensor, Dense, Conv2D
+from udnn import Flatten, tensor, Dense, Conv2D, ReLu, Sigmoid
 
 
 def test_flatten():
@@ -99,6 +99,52 @@ def test_conv():
 
     assert np.isclose(out, tf_out).all()
 
+
+def test_relu():
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.ReLU())
+    # batch size is always 1
+    batch_size = 1
+    total_size = 3 * 4 * 5
+    input_tensor = np.reshape(
+        np.array([random.uniform(-1.0, 1.0) for i in range(total_size)],
+                 dtype="float32"), (batch_size, 3, 4, 5))
+    tf_out = model.predict(input_tensor)
+    tf_out = tf_out.reshape(60)
+
+
+    relu = ReLu((3, 4, 5), dtype="float32")
+    # notice that we don't deal with batch
+    relu.forward(np.reshape(input_tensor, (3, 4, 5)))
+    out = np.array(relu.out)
+    out = out.reshape(60)
+    # make sure they are equal
+    # the following does not work
+    # notice that the TF uses (batch, height, width, channels)
+    assert np.equal(out, tf_out).all()
+
+def test_sigmoid():
+    model = tf.keras.Sequential()
+    model.add(tf.keras.layers.Activation(activation="sigmoid"))
+    # batch size is always 1
+    batch_size = 1
+    total_size = 3 * 4 * 5
+    input_tensor = np.reshape(
+        np.array([random.uniform(-100.0, 100.0) for i in range(total_size)],
+                 dtype="float32"), (batch_size, 3, 4, 5))
+    tf_out = model.predict(input_tensor)
+    tf_out = tf_out.reshape(60)
+
+
+    sig = Sigmoid((3, 4, 5), dtype="float32")
+    # notice that we don't deal with batch
+    sig.forward(np.reshape(input_tensor, (3, 4, 5)))
+    out = np.array(sig.out)
+    out = out.reshape(60)
+    # make sure they are equal
+    # the following does not work
+    # notice that the TF uses (batch, height, width, channels)
+    assert np.isclose(out, tf_out).all()
 
 if __name__ == "__main__":
     test_conv()

@@ -61,6 +61,24 @@ TEST(layer, relu) {
   EXPECT_EQ(out(1, 1, 0), 1);
 }
 
+TEST(layer, sigmoid) {
+  const int dim = 10;
+  SigmoidActivationLayer<float> sigmoid({dim, dim, dim});
+  Tensor<float> input_value(dim, dim, dim);
+  for (auto y = 0; y < dim; y++) {
+    for (auto x = 0; x < dim; x++) {
+      for (auto c = 0; c < dim; c++) {
+        input_value(x, y, c) = y * x - c * dim;
+      }
+    }
+  }
+  sigmoid.forward(input_value);
+  auto const &out = sigmoid.out();
+  EXPECT_EQ(out(0, 0, 0), 0.5);
+  EXPECT_EQ(out(dim-1, dim-1, 0), 1.0);
+  EXPECT_EQ(out(0, 0, dim-1), 0.0);
+}
+
 TEST(layer, flatten) {
   FlattenLayer<int8_t> f({3, 2, 1});
   EXPECT_EQ(f.out_size().x, 6);

@@ -26,12 +26,15 @@ def __get_layer(shape, dtype, name, *args):
 def Flatten(shape, dtype, *args):
     return __get_layer(shape, dtype, "Flatten", *args)
 
-
-
-
 def Conv2D(shape, dtype, *args):
     return __get_layer(shape, dtype, "Conv2D", *args)
 
-
 def Dense(shape, dtype, *args):
     return __get_layer(shape, dtype, "Dense", *args)
+
+def ReLu(shape, dtype, *args):
+    return __get_layer(shape, dtype, "ReLu", *args)
+
+def Sigmoid(shape, dtype, *args):
+    return __get_layer(shape, dtype, "Sigmoid", *args)
+

@@ -34,8 +34,9 @@ void init_layer(py::module &m) {
 
   setup_layer<FlattenLayer, const TensorSize &>(m, "FlattenLayer");
   setup_layer<DenseLayer, const TensorSize &, uint32_t>(m, "DenseLayer");
-  setup_layer<Conv2DLayer, const TensorSize &, uint32_t, uint32_t>(
-      m, "Conv2DLayer");
+  setup_layer<Conv2DLayer, const TensorSize &, uint32_t, uint32_t>(m, "Conv2DLayer");
+  setup_layer<ReLuActivationLayer, const TensorSize &>(m, "ReLuLayer");
+  setup_layer<SigmoidActivationLayer, const TensorSize &>(m, "SigmoidLayer");
 }
 
 

@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <iostream>
 
 enum class DType { Int8, Int16, Int32, Int64, Float, Double };
 
@@ -109,11 +110,14 @@ public:
   uint32_t filter_size;
   uint32_t num_filters;
 
-  inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size,
-                     uint32_t num_filters) {}
+  inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size, uint32_t num_filters)
+    : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), in_size.c - (filter_size-1)}),
+      weights_(filter_size, filter_size, filter_size, num_filters),
+      bias_(in_size.y - (filter_size-1), in_size.x - (filter_size-1), in_size.c * num_filters) {}
 
-  inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k,
-                         T value) {}
+  inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k, T value) {
+    weights_(y, x, c, k) = value;
+  }
 
   inline void load_weights(const Tensor<T> &weight) override {
     weights_.load(weight);
@@ -121,7 +125,27 @@ public:
 
   inline TensorSize weights_size() const { return weights_.size; }
 
-  inline void forward(const Tensor<T> &in) override {}
+  inline void forward(const Tensor<T> &in) override {
+    for(int k = 0; k < weights_.size.k; ++k) {
+      for(int c = 0; c < this->out_.size.c; ++c) {
+        for(int y = 0; y < this->out_.size.y; ++y) {
+          for (int x = 0; x < this->out_.size.x; ++x) {
+  
+            T sum = (T) 0;
+            for(int cc = 0; cc < weights_.size.c; ++cc) {
+              for(int yy = 0; yy < weights_.size.y; ++yy) {
+                for(int xx = 0; xx < weights_.size.x; ++xx) {
+                  sum += in(y + yy, x + xx, c + cc) * weights_(yy, xx, cc, k);
+                }
+              }
+            }
+  
+            this->out_(y, x, c + k) = sum + bias_(y, x, c);
+          }
+        }
+      }
+    }
+  }
 
   inline TensorSize weight_size() const override { return weights_.size; }
   inline TensorSize bias_size() const override { return bias_.size; }
@@ -150,18 +174,47 @@ private:
 
 template <typename T> class FlattenLayer : public Layer<T> {
 public:
-  inline explicit FlattenLayer(const TensorSize &in_size) {}
+  inline explicit FlattenLayer(const TensorSize &in_size)
+    : Layer<T>(in_size, {1, in_size.y * in_size.x * in_size.c, 1}) {}
 
-  inline void forward(const Tensor<T> &in) override {}
+  inline void forward(const Tensor<T> &in) override {
+      auto rows = this->in_size_.y;
+      auto cols = this->in_size_.x;
+      auto ch   = this->in_size_.c;
+      for(int c = 0; c < ch; ++c) {
+        for(int y = 0; y < rows; ++y) {
+          for(int x = 0; x < cols; ++x) {
+            auto idx = c + y * cols * ch + x * ch;
+            this->out_(0, idx, 0) = in(y, x, c);
+          }
+        }
+      }
+  }
 };
 
 template <typename T> class DenseLayer : public Layer<T> {
 public:
-  inline DenseLayer(const TensorSize &in_size, uint32_t out_size) {}
+  inline DenseLayer(const TensorSize &in_size, uint32_t out_size)
+    : Layer<T>(in_size, {1, out_size, 1}),
+      weights_(in_size.x, out_size,  1),
+      bias_(1, out_size, 1) {}
 
-  inline void set_weight(uint32_t y, uint32_t x, uint32_t c, T value) {}
+  inline void set_weight(uint32_t y, uint32_t x, uint32_t c, T value) {
+    weights_(y, x, c) = value;
+  }
 
-  inline void forward(const Tensor<T> &in) override {}
+  inline void forward(const Tensor<T> &in) override {
+    auto L = this->out_.size.x;
+      
+    for (int l = 0; l < L; ++l)
+    {
+      T sum = (T) 0;
+      for (int x = 0; x < this->in_size_.x; ++x)
+        sum += in(0, x, 0) * weights_(x, l, 0);
+
+      this->out_(0, l, 0) = sum + bias_(0, l, 0);
+    }
+  }
 
   inline bool has_bias() const override { return true; }
   inline bool has_weights() const override { return true; }
@@ -188,7 +241,15 @@ public:
   inline explicit ActivationLayer(const TensorSize &size)
       : Layer<T>(size, size) {}
 
-  inline void forward(const Tensor<T> &in) {}
+  inline void forward(const Tensor<T> &in) {
+    for(int c = 0; c < this->in_size_.c; ++c) {
+      for(int y = 0; y < this->in_size_.y; ++y) {
+        for (int x = 0; x < this->in_size_.x; ++x) {
+          this->out_(y, x, c) = activate_function(in(y, x, c));
+        }
+      }
+    }
+  }
 
 protected:
   inline virtual T activate_function(T value) { return value; }
@@ -200,7 +261,9 @@ public:
       : ActivationLayer<T>(size) {}
 
 protected:
-  inline T activate_function(T value) override { return 0; }
+  inline T activate_function(T value) override {
+    return value > (T) 0 ? value : (T) 0;
+  }
 };
 
 template <typename T> class SigmoidActivationLayer : public ActivationLayer<T> {
@@ -209,7 +272,9 @@ public:
       : ActivationLayer<T>(size) {}
 
 protected:
-  inline T activate_function(T value) override { return 0; }
+  inline T activate_function(T value) override {
+      return (T) 1 / ((T) 1 + std::exp(-value));
+  }
 };
 
 #endif // UDNN_LAYER_HH
