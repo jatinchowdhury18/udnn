@@ -37,6 +37,8 @@ void init_layer(py::module &m) {
   setup_layer<Conv2DLayer, const TensorSize &, uint32_t, uint32_t>(m, "Conv2DLayer");
   setup_layer<ReLuActivationLayer, const TensorSize &>(m, "ReLuLayer");
   setup_layer<SigmoidActivationLayer, const TensorSize &>(m, "SigmoidLayer");
+  setup_layer<MaxPoolingLayer, const TensorSize &, uint32_t>(m, "MaxPoolingLayer");
+  setup_layer<DropoutLayer, const TensorSize &, float, int>(m, "DropoutLayer");
 }
 
 

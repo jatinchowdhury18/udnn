@@ -38,3 +38,9 @@ def ReLu(shape, dtype, *args):
 def Sigmoid(shape, dtype, *args):
     return __get_layer(shape, dtype, "Sigmoid", *args)
 
+def MaxPooling(shape, dtype, *args):
+    return __get_layer(shape, dtype, "MaxPooling", *args)
+
+def Dropout(shape, dtype, *args):
+    return __get_layer(shape, dtype, "Dropout", *args)
+

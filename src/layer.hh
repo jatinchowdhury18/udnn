@@ -111,9 +111,9 @@ public:
   uint32_t num_filters;
 
   inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size, uint32_t num_filters)
-    : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), in_size.c - (filter_size-1)}),
-      weights_(filter_size, filter_size, filter_size, num_filters),
-      bias_(in_size.y - (filter_size-1), in_size.x - (filter_size-1), in_size.c * num_filters) {}
+    : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), num_filters}),
+      weights_(filter_size, filter_size, in_size.c * num_filters),
+      bias_(1, 1, num_filters) {}
 
   inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k, T value) {
     weights_(y, x, c, k) = value;
@@ -126,22 +126,18 @@ public:
   inline TensorSize weights_size() const { return weights_.size; }
 
   inline void forward(const Tensor<T> &in) override {
-    for(int k = 0; k < weights_.size.k; ++k) {
-      for(int c = 0; c < this->out_.size.c; ++c) {
-        for(int y = 0; y < this->out_.size.y; ++y) {
-          for (int x = 0; x < this->out_.size.x; ++x) {
-  
-            T sum = (T) 0;
-            for(int cc = 0; cc < weights_.size.c; ++cc) {
-              for(int yy = 0; yy < weights_.size.y; ++yy) {
-                for(int xx = 0; xx < weights_.size.x; ++xx) {
-                  sum += in(y + yy, x + xx, c + cc) * weights_(yy, xx, cc, k);
-                }
+    for(int c = 0; c < this->out_.size.c; ++c) {
+      for(int y = 0; y < this->out_.size.y; ++y) {
+        for(int x = 0; x < this->out_.size.x; ++x) {
+          T sum = (T) 0;
+          for (int cc = 0; cc < this->in_size_.c; ++cc) {
+            for(int yy = 0; yy < weights_.size.y; ++yy) {
+              for(int xx = 0; xx < weights_.size.x; ++xx) {
+                sum += in(y + yy, x + xx, cc) * weights_(yy, xx, c * this->in_size_.c + cc);
               }
             }
-  
-            this->out_(y, x, c + k) = sum + bias_(y, x, c);
           }
+          this->out_(y, x, c) = sum + bias_(0, 0, c);
         }
       }
     }
@@ -163,13 +159,60 @@ private:
 
 template <typename T> class MaxPoolingLayer : public Layer<T> {
 public:
-  inline explicit MaxPoolingLayer(const TensorSize &in_size,
-                                  uint32_t pool_size) {}
+  inline explicit MaxPoolingLayer(const TensorSize &in_size, uint32_t pool_size)
+    : Layer<T>(in_size, {in_size.y - pool_size, in_size.x - pool_size, in_size.c}),
+      pool_size_(pool_size) {}
 
-  inline void forward(const Tensor<T> &in) override {}
+  inline void forward(const Tensor<T> &in) override {
+    for(int c = 0; c < this->out_.size.c; ++c) {
+      for(int y = 0; y < this->out_.size.y; ++y) {
+        for(int x = 0; x < this->out_.size.x; ++x) {
+          T max = in(y * pool_size_, x * pool_size_, c);
+          for(int yy = 0; yy < pool_size_; ++yy) {
+            for(int xx = 0; xx < pool_size_; ++xx) {
+              if(in(y * pool_size_ + yy, x * pool_size_ + xx, c) > max)
+                max = in(y * pool_size_ + yy, x * pool_size_ + xx, c);
+            }
+          }
+          this->out_(y, x, c) = max;
+        }
+      }
+    }
+  }
 
 private:
   uint32_t pool_size_;
+};
+
+template <typename T> class DropoutLayer : public Layer<T> {
+public:
+  inline explicit DropoutLayer(const TensorSize &in_size, const float rate, int seed)
+    : Layer<T>(in_size, {in_size.y, in_size.x, in_size.c}),
+      rate(rate) {
+        srand(seed);
+      }
+
+  inline void forward(const Tensor<T> &in) override {
+    int total_num = this->in_size_.y * this->in_size_.x * this->in_size_.c;
+    int num_to_zero = int ((float) total_num * rate);
+    int start = rand() % total_num;
+
+    for(int i = 0; i < total_num; ++i) {
+      int idx = (i + start) % total_num;
+
+      int cIdx = idx / (this->in_size_.y * this->in_size_.x);
+
+      int sy = idx - cIdx * (this->in_size_.y * this->in_size_.x);
+      int yIdx = sy / this->in_size_.x;
+
+      int xIdx = idx - cIdx * (this->in_size_.y * this->in_size_.x) - yIdx * this->in_size_.x;
+
+      this->out_(yIdx, xIdx, cIdx) = (i < num_to_zero) ? (T) 0 : in(yIdx, xIdx, cIdx);
+    }
+  }
+
+private:
+  const float rate;
 };
 
 template <typename T> class FlattenLayer : public Layer<T> {

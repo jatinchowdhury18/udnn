@@ -29,6 +29,50 @@ TEST(layer, conv) {
   EXPECT_EQ(out(1, 1, 0), 3 * 3 * 3 * 2);
 }
 
+TEST(layer, maxpool) {
+  MaxPoolingLayer<int8_t> layer({4, 4, 3}, 2);
+
+  Tensor<int8_t> input(4, 4, 3);
+  for (uint32_t y = 0; y < 4; y++) {
+    for (uint32_t x = 0; x < 4; x++) {
+      for (uint32_t c = 0; c < 3; c++) {
+        input(y, x, c, 0) = x + y;
+      }
+    }
+  }
+
+  layer.forward(input);
+  auto const &out = layer.out();
+  EXPECT_EQ(out.size.x, 2);
+  EXPECT_EQ(out.size.y, 2);
+  EXPECT_EQ(out.size.c, 3);
+  EXPECT_EQ(out(0, 0, 0), 2);
+  EXPECT_EQ(out(1, 1, 1), 6);
+}
+
+TEST(layer, dropout) {
+  DropoutLayer<int8_t> zero_layer({2, 2, 2}, 0.0f, 0);
+  DropoutLayer<int8_t> one_layer({2, 2, 2}, 1.0f, 0);
+
+  Tensor<int8_t> input(2, 2, 2);
+  for (uint32_t y = 0; y < 2; y++) {
+    for (uint32_t x = 0; x < 2; x++) {
+      for (uint32_t c = 0; c < 2; c++) {
+        input(y, x, c, 0) = x + y;
+      }
+    }
+  }
+
+  zero_layer.forward(input);
+  auto const& zero_out = zero_layer.out();
+
+  one_layer.forward(input);
+  auto const& one_out = one_layer.out();
+
+  EXPECT_EQ(zero_out(0, 0, 0), input(0, 0, 0));
+  EXPECT_EQ(one_out(1, 1, 1), 0);
+}
+
 TEST(layer, fc) {
   DenseLayer<int8_t> fc_layer({1, 8, 1}, 2);
   Tensor<int8_t> input_value(1, 8, 1);

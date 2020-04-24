@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import random
-from udnn import Flatten, tensor, Dense, Conv2D, ReLu, Sigmoid
+from udnn import Flatten, tensor, Dense, Conv2D, ReLu, Sigmoid, MaxPooling, Dropout
 
 
 def test_flatten():
@@ -145,6 +145,69 @@ def test_sigmoid():
     # the following does not work
     # notice that the TF uses (batch, height, width, channels)
     assert np.isclose(out, tf_out).all()
+
+
+def test_max_pool():
+    tf.random.set_seed(0)
+    input_size = 4
+    pool_size = 2
+    input_channel = 1
+    input_shape = (1, input_size, input_size, input_channel)
+    model = tf.keras.Sequential()
+    max_pool = tf.keras.layers.MaxPool2D((pool_size, pool_size),
+                                  dtype="float32")
+    model.add(max_pool)
+    model.build(input_shape)
+
+    layer = MaxPooling((input_size, input_size, input_channel), "float32", pool_size)
+
+    total_num = input_size * input_size * input_channel
+    data = [i for i in range(total_num)]
+    input_tensor = np.array(data, dtype="float32").reshape((1, input_size,
+                                                            input_size,
+                                                            input_channel))
+    tf_out = model.predict(input_tensor)
+    tf_out = tf_out.reshape((input_size - pool_size,
+                             input_size - pool_size, input_channel))
+
+    input_tensor = np.reshape(input_tensor,
+                              (input_size, input_size, input_channel))
+    layer.forward(input_tensor)
+    out = np.array(layer.out).reshape((input_size - pool_size,
+                                       input_size - pool_size,
+                                       input_channel))
+
+    assert np.isclose(out, tf_out).all()
+
+
+def test_dropout():
+    tf.random.set_seed(0)
+    input_size = 4
+    input_channel = 1
+    rate = 0.0
+    input_shape = (1, input_size, input_size, input_channel)
+    model = tf.keras.Sequential()
+    drop = tf.keras.layers.Dropout(0.5, seed=0, dtype="float32")
+    model.add(drop)
+    model.build(input_shape)
+
+    layer = Dropout((input_size, input_size, input_channel), "float32", rate, 0)
+
+    total_num = input_size * input_size * input_channel
+    data = [i for i in range(total_num)]
+    input_tensor = np.array(data, dtype="float32").reshape((1, input_size,
+                                                            input_size,
+                                                            input_channel))
+    tf_out = model.predict(input_tensor)
+    tf_out = tf_out.reshape((input_size, input_size, input_channel))
+
+    input_tensor = np.reshape(input_tensor,
+                              (input_size, input_size, input_channel))
+    layer.forward(input_tensor)
+    out = np.array(layer.out).reshape((input_size, input_size, input_channel))
+
+    assert np.isclose(out, tf_out).all()
+
 
 if __name__ == "__main__":
     test_conv()
