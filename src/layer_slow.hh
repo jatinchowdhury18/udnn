@@ -160,26 +160,21 @@ private:
 template <typename T> class MaxPoolingLayer : public Layer<T> {
 public:
   inline explicit MaxPoolingLayer(const TensorSize &in_size, uint32_t pool_size)
-    : Layer<T>(in_size, {in_size.y / pool_size, in_size.x / pool_size, in_size.c}),
+    : Layer<T>(in_size, {in_size.y - pool_size, in_size.x - pool_size, in_size.c}),
       pool_size_(pool_size) {}
 
   inline void forward(const Tensor<T> &in) override {
-    const int max_size = pool_size_ * pool_size_;
-    auto maxer = typename Tensor<T>::vector_type(max_size);
-
     for(int c = 0; c < this->out_.size.c; ++c) {
       for(int y = 0; y < this->out_.size.y; ++y) {
         for(int x = 0; x < this->out_.size.x; ++x) {
-          
-          int idx = 0;
+          T max = in(y * pool_size_, x * pool_size_, c);
           for(int yy = 0; yy < pool_size_; ++yy) {
             for(int xx = 0; xx < pool_size_; ++xx) {
-              maxer[idx++] = in(y * pool_size_ + yy, x * pool_size_ + xx, c);
+              if(in(y * pool_size_ + yy, x * pool_size_ + xx, c) > max)
+                max = in(y * pool_size_ + yy, x * pool_size_ + xx, c);
             }
           }
-          this->out_(y, x, c) = xsimd::reduce(maxer.begin(), maxer.end(), maxer[0],
-            [](const auto &a, const auto &b) { return xsimd::max(a, b); });
-
+          this->out_(y, x, c) = max;
         }
       }
     }
@@ -226,10 +221,17 @@ public:
     : Layer<T>(in_size, {1, in_size.y * in_size.x * in_size.c, 1}) {}
 
   inline void forward(const Tensor<T> &in) override {
-    auto total_size = in.size.x * in.size.y * in.size.c * in.size.k;
-    auto in2 = typename Tensor<T>::vector_type(in.data(), in.data() + total_size);
-    xsimd::transform(in2.begin(), in2.end(), this->out_.begin(),
-      [](auto const &a) { return a; });
+      auto rows = this->in_size_.y;
+      auto cols = this->in_size_.x;
+      auto ch   = this->in_size_.c;
+      for(int c = 0; c < ch; ++c) {
+        for(int y = 0; y < rows; ++y) {
+          for(int x = 0; x < cols; ++x) {
+            auto idx = c + y * cols * ch + x * ch;
+            this->out_(0, idx, 0) = in(y, x, c);
+          }
+        }
+      }
   }
 };
 
@@ -282,7 +284,7 @@ public:
   inline explicit ActivationLayer(const TensorSize &size)
       : Layer<T>(size, size) {}
 
-  inline void forward(const Tensor<T> &in) override {
+  inline void forward(const Tensor<T> &in) {
     for(int c = 0; c < this->in_size_.c; ++c) {
       for(int y = 0; y < this->in_size_.y; ++y) {
         for (int x = 0; x < this->in_size_.x; ++x) {
@@ -299,68 +301,23 @@ protected:
 template <typename T> class ReLuActivationLayer : public ActivationLayer<T> {
 public:
   inline explicit ReLuActivationLayer(const TensorSize &size)
-      : ActivationLayer<T>(size),
-        zeros(size.x * size.y * size.c * size.k) {
-          for(int i = 0; i < size.x * size.y * size.c * size.k; ++i)
-            zeros[i] = (T) 0;
-        }
-
-  inline void forward(const Tensor<T> &in) override {
-    auto total_size = in.size.x * in.size.y * in.size.c * in.size.k;
-    auto in2 = typename Tensor<T>::vector_type(in.data(), in.data() + total_size);
-    xsimd::transform(in2.begin(), in2.end(), zeros.begin(), this->out_.begin(),
-      [](auto const &a, auto const &b) { return xsimd::max(a, b); });
-  }
+      : ActivationLayer<T>(size) {}
 
 protected:
   inline T activate_function(T value) override {
     return value > (T) 0 ? value : (T) 0;
   }
-
-private:
-  typename Tensor<T>::vector_type zeros;
 };
 
 template <typename T> class SigmoidActivationLayer : public ActivationLayer<T> {
 public:
   inline explicit SigmoidActivationLayer(const TensorSize &size)
-      : ActivationLayer<T>(size),
-        ones(size.x * size.y * size.c * size.k) {
-          for(int i = 0; i < size.x * size.y * size.c * size.k; ++i)
-            ones[i] = (T) 1;
-        }
-
-  inline void forward(const Tensor<T> &in) override {
-    auto total_size = in.size.x * in.size.y * in.size.c * in.size.k;
-    auto in2 = typename Tensor<double>::vector_type(in.data(), in.data() + total_size);
-    auto out2 = typename Tensor<double>::vector_type(this->out_.data(), this->out_.data() + total_size);
-    
-    using b_type = xsimd::simd_type<double>;
-    auto inc = Tensor<double>::simd_size();
-    auto size = in2.size();
-    // size for which the vectorization is possible
-    auto vec_size = size - size % inc;
-    for (std::size_t i = 0; i < vec_size; i += inc) {
-      b_type a_vec = xsimd::load_aligned(&in2[i]);
-      b_type r_vec = 1.0 / (1.0 + xsimd::exp(-a_vec));
-      xsimd::store_aligned(&out2[i], r_vec);
-    }
-    // Remaining part that cannot be vectorize
-    for (auto i = vec_size; i < size; ++i) {
-      out2[i] = activate_function(in2[i]);
-    }
-
-    for(int i = 0; i < total_size; ++i) {
-      this->out_.data()[i] = out2[i];
-    }
-  }
+      : ActivationLayer<T>(size) {}
 
 protected:
   inline T activate_function(T value) override {
       return (T) 1 / ((T) 1 + std::exp(-value));
   }
-private:
-  typename Tensor<T>::vector_type ones;
 };
 
 #endif // UDNN_LAYER_HH

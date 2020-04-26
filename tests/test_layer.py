@@ -149,8 +149,8 @@ def test_sigmoid():
 
 def test_max_pool():
     tf.random.set_seed(0)
-    input_size = 4
-    pool_size = 2
+    input_size = 10
+    pool_size = 5
     input_channel = 1
     input_shape = (1, input_size, input_size, input_channel)
     model = tf.keras.Sequential()
@@ -167,14 +167,14 @@ def test_max_pool():
                                                             input_size,
                                                             input_channel))
     tf_out = model.predict(input_tensor)
-    tf_out = tf_out.reshape((input_size - pool_size,
-                             input_size - pool_size, input_channel))
+    tf_out = tf_out.reshape((int(input_size / pool_size),
+                             int(input_size / pool_size), input_channel))
 
     input_tensor = np.reshape(input_tensor,
                               (input_size, input_size, input_channel))
     layer.forward(input_tensor)
-    out = np.array(layer.out).reshape((input_size - pool_size,
-                                       input_size - pool_size,
+    out = np.array(layer.out).reshape((int(input_size / pool_size),
+                                       int(input_size / pool_size),
                                        input_channel))
 
     assert np.isclose(out, tf_out).all()

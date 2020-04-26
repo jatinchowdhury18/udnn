@@ -86,7 +86,7 @@ TEST(layer, fc) {
   // the sum should be 8, 8
   fc_layer.forward(input_value);
   auto const &out = fc_layer.out();
-  EXPECT_EQ(out(0, 0, 0), 8 * 2);
+  EXPECT_EQ(out(0, 0, 0), 8*2);
 }
 
 TEST(layer, relu) {
@@ -120,7 +120,7 @@ TEST(layer, sigmoid) {
   auto const &out = sigmoid.out();
   EXPECT_EQ(out(0, 0, 0), 0.5);
   EXPECT_EQ(out(dim-1, dim-1, 0), 1.0);
-  EXPECT_EQ(out(0, 0, dim-1), 0.0);
+  EXPECT_TRUE((out(0, 0, dim-1) < 0.1) && (out(0, 0, dim-1) > -0.1));
 }
 
 TEST(layer, flatten) {
