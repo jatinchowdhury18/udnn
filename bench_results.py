@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-ops = ['flatten', 'dense', 'conv', 'relu', 'sigmoid']
+ops = ['flatten', 'conv', 'relu', 'sigmoid', 'maxpool']
 
 for op in ops:
     if op in ['dense', 'conv', 'relu', 'sigmoid']:
@@ -9,17 +9,23 @@ for op in ops:
     else:
         dtypes = ['int8', 'int16', 'float32', 'double']
 
-    plt.figure()
     for dtype in dtypes:
+        plt.figure()
         Xtf = np.loadtxt(f'bench_results/tf/{op}_{dtype}.csv')
-        Xslow = np.loadtxt(f'bench_results/slow/{op}_{dtype}.csv')
+        if op != 'maxpool':
+            Xslow = np.loadtxt(f'bench_results/slow/{op}_{dtype}.csv')
+        Xfast = np.loadtxt(f'bench_results/fast/{op}_{dtype}.csv')
 
-        plt.plot(Xtf[0,:], Xtf[1,:], label=f'tf {dtype}')
-        plt.plot(Xslow[0,:], Xslow[1,:], label=f'UDNN slow {dtype}')
+        L = len(Xtf[0,:])
 
-    plt.legend()
-    plt.xlabel('Dimension')
-    plt.ylabel('Seconds')
-    plt.title(f'{op} Benchmark ({dtype})')
+        plt.plot(Xtf[0,:L], Xtf[1,:L], label=f'tf')
+        if op != 'maxpool':
+            plt.plot(Xslow[0,:L], Xslow[1,:L], label=f'UDNN slow')
+        plt.plot(Xfast[0,:L], Xfast[1,:L], label=f'UDNN fast')
 
-    plt.savefig(f'bench_results/{op}.png')
+        plt.legend()
+        plt.xlabel('Dimension')
+        plt.ylabel('Seconds')
+        plt.title(f'{op} Benchmark ({dtype})')
+
+        plt.savefig(f'bench_results/{op}_{dtype}.png')

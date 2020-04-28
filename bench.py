@@ -220,8 +220,8 @@ def bench_maxpool(N=1000, size=5, dtype="int8", useTF=False):
 
 
 if __name__ == "__main__":
-    op = 'maxpool'
-    pack = 'slow'
+    op = 'dense'
+    pack = 'fast'
 
     if op == 'flatten':
         dims = np.array([10, 20, 50, 100, 150, 200])
@@ -234,10 +234,10 @@ if __name__ == "__main__":
         dims = np.array([20, 30, 40, 50, 60,])
     elif op == 'relu' or op == 'sigmoid':
         dtypes = ['float32', 'double']
-        dims = np.array([10, 50, 100, 150, 200])
+        dims = np.array([10, 50, 100, 150, 200, 250])
     elif op == 'maxpool':
         dtypes = ['int8', 'int16', 'float32', 'double']
-        dims = np.array([16, 50]) #, 100, 150, 200])
+        dims = np.array([50, 100, 200, 500, 1000, 2000, 5000])
     else:
         exit()
 
@@ -249,17 +249,17 @@ if __name__ == "__main__":
         times = []
         for d in dims:
             if op == 'flatten':
-                T = bench_flatten(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_flatten(N=500, size=d, useTF=useTF, dtype=dtype)
             elif op == 'dense':
-                T = bench_dense(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_dense(N=200, size=d, useTF=useTF, dtype=dtype)
             elif op == 'conv':
-                T = bench_conv(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_conv(N=200, size=d, useTF=useTF, dtype=dtype)
             elif op == 'relu':
-                T = bench_relu(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_relu(N=200, size=d, useTF=useTF, dtype=dtype)
             elif op == 'sigmoid':
-                T = bench_sigmoid(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_sigmoid(N=200, size=d, useTF=useTF, dtype=dtype)
             elif op == 'maxpool':
-                T = bench_maxpool(N=1000, size=d, useTF=useTF, dtype=dtype)
+                T = bench_maxpool(N=200, size=d, useTF=useTF, dtype=dtype)
             times.append(T)
 
         results = np.array([dims, times], dtype=np.float32)

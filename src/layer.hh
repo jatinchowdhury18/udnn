@@ -126,17 +126,30 @@ public:
   inline TensorSize weights_size() const { return weights_.size; }
 
   inline void forward(const Tensor<T> &in) override {
+    auto filter_dims = this->in_size_.c * weights_.size.y * weights_.size.x;
+    auto in2 = typename Tensor<T>::vector_type(filter_dims);
+    auto w = typename Tensor<T>::vector_type(filter_dims);
+    auto prod = typename Tensor<T>::vector_type(filter_dims);
+
     for(int c = 0; c < this->out_.size.c; ++c) {
       for(int y = 0; y < this->out_.size.y; ++y) {
         for(int x = 0; x < this->out_.size.x; ++x) {
-          T sum = (T) 0;
+          int i = 0;
           for (int cc = 0; cc < this->in_size_.c; ++cc) {
             for(int yy = 0; yy < weights_.size.y; ++yy) {
               for(int xx = 0; xx < weights_.size.x; ++xx) {
-                sum += in(y + yy, x + xx, cc) * weights_(yy, xx, c * this->in_size_.c + cc);
+                in2[i] = in(y + yy, x + xx, cc);
+                w[i] = weights_(yy, xx, c * this->in_size_.c + cc);
+                i++;
               }
             }
           }
+
+          xsimd::transform (in2.begin(), in2.end(), w.begin(), prod.begin(),
+            [](auto const &a, auto const &b) { return a * b; });
+          
+          auto sum = xsimd::reduce (prod.begin(), prod.end(), (T) 0);
+            
           this->out_(y, x, c) = sum + bias_(0, 0, c);
         }
       }
@@ -202,18 +215,18 @@ public:
     int num_to_zero = int ((float) total_num * rate);
     int start = rand() % total_num;
 
-    for(int i = 0; i < total_num; ++i) {
-      int idx = (i + start) % total_num;
+    auto in2 = typename Tensor<T>::vector_type(in.data(), in.data() + total_num);
+    auto mask = typename Tensor<T>::vector_type (total_num);
+    auto out2 = typename Tensor<T>::vector_type(total_num);
 
-      int cIdx = idx / (this->in_size_.y * this->in_size_.x);
+    for(int i = 0; i < total_num; ++i)
+      mask[i] = (i < num_to_zero) ? (T) 0 : (T) 1;
 
-      int sy = idx - cIdx * (this->in_size_.y * this->in_size_.x);
-      int yIdx = sy / this->in_size_.x;
+    xsimd::transform (in2.begin(), in2.end(), mask.begin(), out2.begin(),
+      [](const auto &a, const auto &b) { return a * b; });
 
-      int xIdx = idx - cIdx * (this->in_size_.y * this->in_size_.x) - yIdx * this->in_size_.x;
-
-      this->out_(yIdx, xIdx, cIdx) = (i < num_to_zero) ? (T) 0 : in(yIdx, xIdx, cIdx);
-    }
+    for(int i = 0; i < total_num; ++i)
+      this->out_.data()[i] = out2[i];
   }
 
 private:
@@ -238,21 +251,33 @@ public:
   inline DenseLayer(const TensorSize &in_size, uint32_t out_size)
     : Layer<T>(in_size, {1, out_size, 1}),
       weights_(in_size.x, out_size,  1),
-      bias_(1, out_size, 1) {}
+      bias_(1, out_size, 1),
+      prod(in_size.x) {
+        w2 = new T*[out_size];
+        for (int i = 0; i < out_size; ++i)
+          w2[i] = new T[in_size.x];
+      }
+  
+  ~DenseLayer() {
+    for (int i = 0; i < this->out_.size.x; ++i)
+      delete[] w2[i];
+    delete[] w2;
+  }
 
   inline void set_weight(uint32_t y, uint32_t x, uint32_t c, T value) {
     weights_(y, x, c) = value;
+    w2[x][y] = value;
   }
 
   inline void forward(const Tensor<T> &in) override {
-    auto L = this->out_.size.x;
-      
-    for (int l = 0; l < L; ++l)
-    {
-      T sum = (T) 0;
-      for (int x = 0; x < this->in_size_.x; ++x)
-        sum += in(0, x, 0) * weights_(x, l, 0);
+    auto xDim = in.size.x;
+    auto in2 = typename Tensor<T>::vector_type(in.data(), in.data() + xDim);
+    for (int l = 0; l < this->out_.size.x; ++l) {
+      xsimd::transform(in2.begin(), in2.end(), w2[l], prod.begin(),
+        [](auto const &a, auto const &b) { return a * b; });
 
+      auto sum = xsimd::reduce (prod.begin(), prod.end(), (T) 0);
+      
       this->out_(0, l, 0) = sum + bias_(0, l, 0);
     }
   }
@@ -262,6 +287,13 @@ public:
 
   inline void load_weights(const Tensor<T> &weight) override {
     weights_.load(weight);
+
+    for (int l = 0; l < this->out_.size.x; ++l) {
+      for (int x = 0; x < this->in_size_.x; ++x) {
+        auto idx = l * this->out_.size.x + x;
+        w2[l][x] = weights_(x, l, 0);
+      }
+    }
   }
   inline TensorSize weight_size() const override { return weights_.size; }
   inline TensorSize bias_size() const override { return bias_.size; }
@@ -275,6 +307,9 @@ public:
 protected:
   Tensor<T> weights_;
   Tensor<T> bias_;
+
+  T** w2;
+  typename Tensor<T>::vector_type prod;
 };
 
 template <typename T> class ActivationLayer : public Layer<T> {
@@ -325,15 +360,11 @@ template <typename T> class SigmoidActivationLayer : public ActivationLayer<T> {
 public:
   inline explicit SigmoidActivationLayer(const TensorSize &size)
       : ActivationLayer<T>(size),
-        ones(size.x * size.y * size.c * size.k) {
-          for(int i = 0; i < size.x * size.y * size.c * size.k; ++i)
-            ones[i] = (T) 1;
-        }
+        total_size(this->in_size_.x * this->in_size_.y * this->in_size_.c * this->in_size_.k),
+        out2(total_size) {}
 
   inline void forward(const Tensor<T> &in) override {
-    auto total_size = in.size.x * in.size.y * in.size.c * in.size.k;
     auto in2 = typename Tensor<double>::vector_type(in.data(), in.data() + total_size);
-    auto out2 = typename Tensor<double>::vector_type(this->out_.data(), this->out_.data() + total_size);
     
     using b_type = xsimd::simd_type<double>;
     auto inc = Tensor<double>::simd_size();
@@ -360,7 +391,8 @@ protected:
       return (T) 1 / ((T) 1 + std::exp(-value));
   }
 private:
-  typename Tensor<T>::vector_type ones;
+  const int total_size;
+  typename Tensor<double>::vector_type out2;
 };
 
 #endif // UDNN_LAYER_HH
