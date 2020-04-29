@@ -112,7 +112,7 @@ public:
 
   inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size, uint32_t num_filters)
     : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), num_filters}),
-      weights_(filter_size, filter_size, in_size.c * num_filters),
+      weights_(filter_size, filter_size, in_size.c, num_filters),
       bias_(1, 1, num_filters) {}
 
   inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k, T value) {
@@ -133,7 +133,7 @@ public:
           for (int cc = 0; cc < this->in_size_.c; ++cc) {
             for(int yy = 0; yy < weights_.size.y; ++yy) {
               for(int xx = 0; xx < weights_.size.x; ++xx) {
-                sum += in(y + yy, x + xx, cc) * weights_(yy, xx, c * this->in_size_.c + cc);
+                sum += in(y + yy, x + xx, cc) * weights_(yy, xx, cc, c);
               }
             }
           }
@@ -164,20 +164,20 @@ public:
       pool_size_(pool_size) {}
 
   inline void forward(const Tensor<T> &in) override {
-    for(int c = 0; c < this->out_.size.c; ++c) {
-      for(int y = 0; y < this->out_.size.y; ++y) {
-        for(int x = 0; x < this->out_.size.x; ++x) {
-          T max = in(y * pool_size_, x * pool_size_, c);
-          for(int yy = 0; yy < pool_size_; ++yy) {
-            for(int xx = 0; xx < pool_size_; ++xx) {
-              if(in(y * pool_size_ + yy, x * pool_size_ + xx, c) > max)
-                max = in(y * pool_size_ + yy, x * pool_size_ + xx, c);
-            }
-          }
-          this->out_(y, x, c) = max;
-        }
-      }
-    }
+    // for(int c = 0; c < this->out_.size.c; ++c) {
+    //   for(int y = 0; y < this->out_.size.y; ++y) {
+    //     for(int x = 0; x < this->out_.size.x; ++x) {
+    //       T max = in(y * pool_size_, x * pool_size_, c);
+    //       for(int yy = 0; yy < pool_size_; ++yy) {
+    //         for(int xx = 0; xx < pool_size_; ++xx) {
+    //           if(in(y * pool_size_ + yy, x * pool_size_ + xx, c) > max)
+    //             max = in(y * pool_size_ + yy, x * pool_size_ + xx, c);
+    //         }
+    //       }
+    //       this->out_(y, x, c) = max;
+    //     }
+    //   }
+    // }
   }
 
 private:

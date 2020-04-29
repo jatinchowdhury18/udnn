@@ -112,7 +112,7 @@ public:
 
   inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size, uint32_t num_filters)
     : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), num_filters}),
-      weights_(filter_size, filter_size, in_size.c * num_filters),
+      weights_(filter_size, filter_size, in_size.c, num_filters),
       bias_(1, 1, num_filters) {}
 
   inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k, T value) {
@@ -139,7 +139,7 @@ public:
             for(int yy = 0; yy < weights_.size.y; ++yy) {
               for(int xx = 0; xx < weights_.size.x; ++xx) {
                 in2[i] = in(y + yy, x + xx, cc);
-                w[i] = weights_(yy, xx, c * this->in_size_.c + cc);
+                w[i] = weights_(yy, xx, cc, c);
                 i++;
               }
             }

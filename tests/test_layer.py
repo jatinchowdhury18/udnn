@@ -59,10 +59,10 @@ def test_dense():
 
 def test_conv():
     tf.random.set_seed(0)
-    input_size = 4
-    num_filter = 10
+    input_size = 8
+    num_filter = 32
     kernel_size = 3
-    input_channel = 1
+    input_channel = 16
     input_shape = (1, input_size, input_size, input_channel)
     model = tf.keras.Sequential()
     conv = tf.keras.layers.Conv2D(num_filter, (kernel_size, kernel_size),
@@ -97,7 +97,7 @@ def test_conv():
                                        input_size - kernel_size + 1,
                                        num_filter))
 
-    assert np.isclose(out, tf_out).all()
+    assert np.isclose(out, tf_out, atol=5.e-4).all()
 
 
 def test_relu():

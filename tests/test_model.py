@@ -79,7 +79,7 @@ def test_model_predict():
     ref_out = ref_model.predict(input_vector.reshape([1] + list(input_size)))
     model_out = np.array(model.predict(input_vector))
     model_out = model_out.reshape(ref_out.shape)
-    assert np.isclose(model_out, ref_out, atol=1.e-6).all()
+    assert np.isclose(model_out, ref_out, atol=1.e-3).all()
 
 
 if __name__ == "__main__":
