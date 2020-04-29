@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-ops = ['flatten', 'conv', 'relu', 'sigmoid', 'maxpool']
+ops = ['flatten', 'dense', 'conv', 'relu', 'sigmoid', 'maxpool']
 
 for op in ops:
     if op in ['dense', 'conv', 'relu', 'sigmoid']:

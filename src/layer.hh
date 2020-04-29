@@ -113,14 +113,30 @@ public:
   inline Conv2DLayer(const TensorSize &in_size, uint32_t filter_size, uint32_t num_filters)
     : Layer<T>(in_size, {in_size.y - (filter_size-1), in_size.x - (filter_size-1), num_filters}),
       weights_(filter_size, filter_size, in_size.c, num_filters),
-      bias_(1, 1, num_filters) {}
+      bias_(1, 1, num_filters),
+      ws_(filter_size * filter_size * in_size.c * num_filters) {}
+
+  inline void refresh_ws() {
+    int i = 0;
+    for (int kk = 0; kk < this->out_.size.c; ++kk) {
+      for (int cc = 0; cc < this->in_size_.c; ++cc) {
+        for(int yy = 0; yy < weights_.size.y; ++yy) {
+          for(int xx = 0; xx < weights_.size.x; ++xx) {
+            ws_[i++] = weights_(yy, xx, cc, kk);
+          }
+        }
+      }
+    }
+  }
 
   inline void set_weight(uint32_t y, uint32_t x, uint32_t c, uint32_t k, T value) {
     weights_(y, x, c, k) = value;
+    refresh_ws();
   }
 
   inline void load_weights(const Tensor<T> &weight) override {
     weights_.load(weight);
+    refresh_ws();
   }
 
   inline TensorSize weights_size() const { return weights_.size; }
@@ -128,7 +144,6 @@ public:
   inline void forward(const Tensor<T> &in) override {
     auto filter_dims = this->in_size_.c * weights_.size.y * weights_.size.x;
     auto in2 = typename Tensor<T>::vector_type(filter_dims);
-    auto w = typename Tensor<T>::vector_type(filter_dims);
     auto prod = typename Tensor<T>::vector_type(filter_dims);
 
     for(int c = 0; c < this->out_.size.c; ++c) {
@@ -138,14 +153,12 @@ public:
           for (int cc = 0; cc < this->in_size_.c; ++cc) {
             for(int yy = 0; yy < weights_.size.y; ++yy) {
               for(int xx = 0; xx < weights_.size.x; ++xx) {
-                in2[i] = in(y + yy, x + xx, cc);
-                w[i] = weights_(yy, xx, cc, c);
-                i++;
+                in2[i++] = in(y + yy, x + xx, cc);
               }
             }
           }
 
-          xsimd::transform (in2.begin(), in2.end(), w.begin(), prod.begin(),
+          xsimd::transform (in2.begin(), in2.end(), ws_.begin() + c * filter_dims, prod.begin(),
             [](auto const &a, auto const &b) { return a * b; });
           
           auto sum = xsimd::reduce (prod.begin(), prod.end(), (T) 0);
@@ -168,6 +181,7 @@ public:
 private:
   Tensor<T> weights_;
   Tensor<T> bias_;
+  typename Tensor<T>::vector_type ws_;
 };
 
 template <typename T> class MaxPoolingLayer : public Layer<T> {

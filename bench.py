@@ -220,7 +220,7 @@ def bench_maxpool(N=1000, size=5, dtype="int8", useTF=False):
 
 
 if __name__ == "__main__":
-    op = 'dense'
+    op = 'conv'
     pack = 'fast'
 
     if op == 'flatten':
