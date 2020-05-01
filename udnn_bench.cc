@@ -4,12 +4,14 @@
 #include "src/udnn.hh"
 using namespace std::chrono;
 
+using dtype = float;
+
 float get_rand_float()
 {
     return 2.0f * static_cast <float> (rand()) / static_cast <float> (RAND_MAX) - 1.0f;
 }
 
-void gen_random_weights_for_layer(Layer<float>* layer)
+void gen_random_weights_for_layer(Layer<dtype>* layer)
 {
     if(layer->has_weights())
     {
@@ -41,19 +43,19 @@ int main()
     srand(0);
 
     std::cout << "Creating model layers..." << std::endl;
-    Conv2DLayer<float> conv0({32, 32, 1}, 3, 32);
-    ReLuActivationLayer<float> relu0({30, 30, 32});
-    Conv2DLayer<float> conv1({30, 30, 32}, 3, 32);
-    ReLuActivationLayer<float> relu1({28, 28, 32});
-    MaxPoolingLayer<float> maxpool1({28, 28, 32}, 2);
-    Conv2DLayer<float> conv2({14, 14, 32}, 3, 64);
-    ReLuActivationLayer<float> relu2({12, 12, 64});
-    MaxPoolingLayer<float> maxpool2({12, 12, 64}, 2);
-    FlattenLayer<float> flatten3({6, 6, 64});
-    DenseLayer<float> dense3({1, 2304, 1}, 512);
-    ReLuActivationLayer<float> relu3({1, 512, 1});
-    DenseLayer<float> dense4({1, 512, 1}, 10);
-    SigmoidActivationLayer<float> sigmoid4({1, 10, 1});
+    Conv2DLayer<dtype> conv0({32, 32, 1}, 3, 32);
+    ReLuActivationLayer<dtype> relu0({30, 30, 32});
+    Conv2DLayer<dtype> conv1({30, 30, 32}, 3, 32);
+    ReLuActivationLayer<dtype> relu1({28, 28, 32});
+    MaxPoolingLayer<dtype> maxpool1({28, 28, 32}, 2);
+    Conv2DLayer<dtype> conv2({14, 14, 32}, 3, 64);
+    ReLuActivationLayer<dtype> relu2({12, 12, 64});
+    MaxPoolingLayer<dtype> maxpool2({12, 12, 64}, 2);
+    FlattenLayer<dtype> flatten3({6, 6, 64});
+    DenseLayer<dtype> dense3({1, 2304, 1}, 512);
+    ReLuActivationLayer<dtype> relu3({1, 512, 1});
+    DenseLayer<dtype> dense4({1, 512, 1}, 10);
+    SigmoidActivationLayer<dtype> sigmoid4({1, 10, 1});
 
     //////////////////////////////////////////////////////
     std::cout << "Generating random model weights..." << std::endl;
@@ -83,8 +85,8 @@ int main()
     //////////////////////////////////////////////////////
     std::cout << "Running inference..." << std::endl;
 
-    Tensor<float> tensor(32, 32, 1);
-    constexpr int numTrials = 1000;
+    Tensor<dtype> tensor(32, 32, 1);
+    constexpr int numTrials = 100;
 
     auto start = high_resolution_clock::now();
     for (int i = 0; i < numTrials; ++i)
